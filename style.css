@@ -64,6 +64,11 @@ span.name {
     width: auto;
 }
 
+#deck_image {
+    height: 140px;
+    width: auto;
+}
+
 #trump {
     transform: rotate(90deg);
     position: relative;
@@ -93,8 +98,8 @@ span.name {
 #battlefield {
     display: flex;
     width: 100%;
-    margin-top: 20px;
-    margin-bottom: 20px;
+    margin-top: 50px;
+    margin-bottom: 50px;
     justify-content: center;
 }
 
