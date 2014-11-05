@@ -1,4 +1,4 @@
-@import url(http://fonts.googleapis.com/css?family=Droid+Serif:400,700|Roboto:700&subset=latin,cyrillic);
+@import url(http://fonts.googleapis.com/css?family=Droid+Serif:400,700|Roboto:400,700&subset=latin,cyrillic);
 
 body {
     font-family: 'Droid Serif', serif;
@@ -6,6 +6,8 @@ body {
 
 h1 {
     font-family: 'Roboto', sans-serif;
+    font-weight: bold;
+    font-size: 32pt;
 }
 
 a:link {
@@ -14,4 +16,72 @@ a:link {
 
 a:hover {
     font-weight: bold;
+}
+
+#opponents {
+    display: flex;
+    width: 100%;
+}
+
+.opponent {
+    flex-grow: 1;
+    border-width: 3px;
+    border-style: dashed;
+}
+
+div.attacking {
+    background-color: rgba(0, 0, 255, .2);
+}
+
+div.defending {
+    background-color: rgba(255, 0, 0, .2);
+}
+
+span.name {
+    font-family: 'Roboto', sans-serif;
+    font-size: 18pt;
+    align-self: center;
+}
+
+#player {
+    margin-left: auto;
+    margin-right: auto;
+    width=400px;
+    text-align: center;
+    border: 3px dashed;
+}
+
+#hand {
+    list-style: none;
+}
+
+#hand li {
+    display: inline;
+}
+
+.card {
+    height: 120px;
+    width: auto;
+}
+
+#trump {
+    transform: rotate(90deg);
+    position: relative;
+    right: 60px;
+    z-index: -1;
+}
+
+.selected {
+   border:3px solid rgba(0, 255, 0, .8);
+}
+
+.card_count {
+    font-size: 100px;
+}
+
+#deck {
+    text-align: center;
+    border: 5px;
+    border-style: solid;
+    border-color: black;
 }
