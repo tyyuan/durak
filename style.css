@@ -1,0 +1,17 @@
+@import url(http://fonts.googleapis.com/css?family=Droid+Serif:400,700|Roboto:700&subset=latin,cyrillic);
+
+body {
+    font-family: 'Droid Serif', serif;
+}
+
+h1 {
+    font-family: 'Roboto', sans-serif;
+}
+
+a:link {
+    text-decoration: none;
+}
+
+a:hover {
+    font-weight: bold;
+}
