@@ -14,9 +14,9 @@
 
 <div id="game">
     <div id="opponents">
-        <div class="opponent defending">
+        <div class="opponent">
             <span class="name">Olga</span>
-            <span class="status">[Defending]</span>
+            <span class="status"></span>
             <div class="opponent_hand">
                 <img class="card" src="img/back.png" />
                 <span class="card_count">6</span>
@@ -44,21 +44,19 @@
             <img id="deck_image" src="img/deck.png" />
             <img id="trump" class="card" src="img/8_of_hearts.png" />
         </div>
-        <div id="battlefield">
+        <div id="battlefield" style="display: none">
             <div class="attacking_slot">Place attacking card</div>
+        </div>
+        <div id="information">
+            <span id="status_message">Press 'Deal' to begin the game.</span>
         </div>
     </div>
 
-    <div id="player" class="attacking">
+    <div id="player" class="">
         <span class="name" id="player_name">Player</span>
-        <span class="status">[Attacking]</span>
+        <span class="status"></span>
         <ol id="hand">
-            <li><img class="card" src="img/6_of_clubs.png" /></li>
-            <li><img class="card selected" src="img/10_of_clubs.png"></li>
-            <li><img class="card" src="img/jack_of_clubs.png"></li>
-            <li><img class="card" src="img/7_of_diamonds.png"></li>
-            <li><img class="card" src="img/9_of_spades.png"></li>
-            <li><img class="card" src="img/ace_of_hearts.png"></li>
+            <li>blah</li>
         </ol>
     </div>
 </div>
