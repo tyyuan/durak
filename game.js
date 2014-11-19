@@ -120,6 +120,7 @@ durak.game.Player = function(name, human) {
 durak.game.Player.prototype.init = function() {
     this.active = true;
     this.hand = []
+    this.removeStatus();
 
     if (this.human) {
         this.handList = document.getElementById('hand');
@@ -212,6 +213,7 @@ durak.game.Player.prototype.checkIfOut = function() {
 durak.game.Player.prototype.removeFromGame = function() {
     this.setStatus('out');
     this.active = false;
+    game.checkForGameOver();
 }
 
 durak.game.Player.prototype.AIAttack = function(game) {
@@ -322,7 +324,7 @@ durak.game.Battlefield.prototype.makePlayerAttack = function(){
         }
 
         if (game.deck.deck.length == 0) {
-            game.players[this.attackingPlayer].checkIfOut();
+            game.players[game.attackingPlayer].checkIfOut();
         }
 
         waitForNext();
@@ -353,7 +355,7 @@ durak.game.Battlefield.prototype.makePlayerDefense = function(e) {
                 if (!this.hasNewAttacks()) {
                     updateStatusText('You have beaten all current attacks.');
                     if (game.deck.deck.length == 0) {
-                        game.players[this.defendingPlayer].checkIfOut();
+                        game.players[game.defendingPlayer].checkIfOut();
                     }
                     game.state = GameStates.AFTER_DEFENSE;
                     waitForNext();
@@ -393,7 +395,9 @@ var GameStates = {
     END_OF_ROUND: 3,
     START_REDRAW: 4,
     REDRAWING: 5,
-    PLAYER_DEFEND: 6
+    PLAYER_DEFEND: 6,
+    READY_TO_INITIATE: 7,
+    GAME_OVER: 8
 };
 
 durak.game.Game = function() {
@@ -405,7 +409,7 @@ durak.game.Game = function() {
         new durak.game.Player('Vladimir', false),
         new durak.game.Player('Ekaterina', false)
     ];
-    this.state = 0;
+    this.state = GameStates.GAME_OVER;
     this.trumpSuit = null;
     this.attackingPlayer = 0;
     this.defendingPlayer = 0;
@@ -437,6 +441,19 @@ durak.game.Game.prototype.deal = function() {
     this.deck.deckElement.style.visibility = 'visible';
     dealButton.style.display = 'none';
 
+    var trumpLabel = document.getElementById('trump_symbol');
+    var suitsSymbols = {
+        'S': '♠',
+        'H': '♥',
+        'D': '♦',
+        'C': '♣'};
+    trumpLabel.innerHTML = suitsSymbols[this.trumpSuit];
+    if (this.trumpSuit == 'H' || this.trumpSuit == 'D') {
+        trumpLabel.style.color = '#E00';
+    } else {
+        trumpLabel.style.color = '#000';
+    }
+
     this.attackingPlayer = 3 //Math.floor(Math.random() * this.playersRemaining);
     this.defendingPlayer = this.incrementPlayer(this.attackingPlayer);
     this.initiateRound();
@@ -444,8 +461,10 @@ durak.game.Game.prototype.deal = function() {
 
 durak.game.Game.prototype.initiateRound = function() {
     for (var i = 0; i < this.players.length; i++) {
-        this.players[i].removeStatus();
-        this.players[i].playedAttack = true;
+        if (this.players[i].active) {
+            this.players[i].removeStatus();
+            this.players[i].playedAttack = true;
+        }
     }
 
     this.originalAttacker = this.attackingPlayer;
@@ -561,7 +580,8 @@ durak.game.Game.prototype.endRound = function() {
         this.state = GameStates.START_REDRAW;
         waitForNext();
     } else {
-        this.initiateRound();
+        this.state = GameStates.READY_TO_INITIATE;
+        waitForNext();
     }
 }
 
@@ -593,7 +613,7 @@ durak.game.Game.prototype.redraw = function() {
     }
 }
 
-durak.game.Game.prototype.nextPhase = function() {
+durak.game.Game.prototype.checkForGameOver = function() {
     if (this.playersRemaining <= 1) {
         var loser = null;
         for (var i = 0; i < this.players.length; i++) {
@@ -603,11 +623,21 @@ durak.game.Game.prototype.nextPhase = function() {
         }
 
         updateStatusText('This game is over! ' + loser + ' is the durak!');
+        this.state = GameStates.GAME_OVER;
+        surrenderButton.style.display = 'none';
+        passButton.style.display = 'none';
         dealButton.style.display = 'inline';
         dealButton.value = 'Redeal';
     }
+}
 
+durak.game.Game.prototype.nextPhase = function() {
     passButton.style.display = 'none';
+
+    if (this.state == GameStates.READY_TO_INITIATE) {
+        this.initiateRound();
+        return;
+    }
     if (this.state == GameStates.END_OF_ROUND) {
         this.endRound();
         return;
@@ -621,6 +651,9 @@ durak.game.Game.prototype.nextPhase = function() {
     for (var i = 0; i < this.players.length; i++) {
         if (i == this.defendingPlayer) {
             continue;
+        }
+
+        if (!this.players[i].active) {
         }
 
         if (this.players[i].playedAttack) {
@@ -655,7 +688,17 @@ durak.game.Game.prototype.nextPhase = function() {
         }
     } else if (this.state == GameStates.AFTER_DEFENSE) {
         surrenderButton.style.display = 'none';
-        this.attack();
+
+        if (this.players[this.defendingPlayer].active) {
+            if (this.players[this.attackingPlayer].active) {
+              this.attack();
+            } else {
+              this.nextAttacker();
+              this.attack();
+            }
+        } else {
+            endRound();
+        }
     }
 }
 

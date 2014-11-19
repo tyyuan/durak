@@ -159,3 +159,7 @@ span.name {
     top: 5px;
     z-index: 2;
 }
+
+#trump_symbol {
+    font-size: 80px;
+}
