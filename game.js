@@ -213,6 +213,8 @@ durak.game.Player.prototype.checkIfOut = function() {
 durak.game.Player.prototype.removeFromGame = function() {
     this.setStatus('out');
     this.active = false;
+    this.playedAttack = false;
+    game.playersRemaining -= 1;
     game.checkForGameOver();
 }
 
@@ -454,7 +456,7 @@ durak.game.Game.prototype.deal = function() {
         trumpLabel.style.color = '#000';
     }
 
-    this.attackingPlayer = 3 //Math.floor(Math.random() * this.playersRemaining);
+    this.attackingPlayer = 0 //Math.floor(Math.random() * this.playersRemaining);
     this.defendingPlayer = this.incrementPlayer(this.attackingPlayer);
     this.initiateRound();
 };
@@ -532,11 +534,14 @@ durak.game.Game.prototype.playerSurrender = function() {
     this.players[this.defendingPlayer].setStatus('surrendered');
     surrenderButton.style.display = 'none';
     this.state = GameStates.AFTER_DEFENSE;
+    this.players[this.defendingPlayer].deselectCards();
     waitForNext();
 }
 
 durak.game.Game.prototype.nextAttacker = function() {
-    this.players[this.attackingPlayer].removeStatus();
+    if (this.players[this.attackingPlayer].active) {
+        this.players[this.attackingPlayer].removeStatus();
+    }
 
     this.attackingPlayer = this.incrementPlayer(this.attackingPlayer);
 
@@ -634,6 +639,7 @@ durak.game.Game.prototype.checkForGameOver = function() {
 durak.game.Game.prototype.nextPhase = function() {
     passButton.style.display = 'none';
 
+
     if (this.state == GameStates.READY_TO_INITIATE) {
         this.initiateRound();
         return;
@@ -647,6 +653,14 @@ durak.game.Game.prototype.nextPhase = function() {
         return;
     }
 
+    if (!this.players[this.originalAttacker].active) {
+        this.originalAttacker = this.incrementPlayer(this.originalAttacker);
+
+        while (this.originalAttacker == this.defendingPlayer) {
+            this.originalAttacker = this.incrementPlayer(this.originalAttacker);
+        }
+    }
+
     var noAttacks = true;
     for (var i = 0; i < this.players.length; i++) {
         if (i == this.defendingPlayer) {
@@ -654,6 +668,7 @@ durak.game.Game.prototype.nextPhase = function() {
         }
 
         if (!this.players[i].active) {
+            continue;
         }
 
         if (this.players[i].playedAttack) {
