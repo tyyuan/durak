@@ -8,55 +8,54 @@
     <script src="closure-library/closure/goog/base.js"></script>
     <script src="game.js"></script>
 </head>
-<body>
+<body onload="init()">
 <h1>Durak/Дурак (Idiot)</h1>
 <p class="introduction">The rules to <a href="http://en.wikipedia.org/wiki/Durak">Podnidnoy Durak</a> can be found <a href="http://www.pagat.com/beating/podkidnoy_durak.html">here</a>.</p>
 
 <div id="game">
     <div id="opponents">
-        <div class="opponent">
+        <div class="opponent" id="Olga">
             <span class="name">Olga</span>
             <span class="status"></span>
             <div class="opponent_hand">
                 <img class="card" src="img/back.png" />
-                <span class="card_count">6</span>
+                <span class="card_count"></span>
             </div>
         </div>
-        <div class="opponent">
+        <div class="opponent" id="Vladimir">
             <span class="name">Vladimir</span>
             <span class="status"></span>
             <div class="opponent_hand">
                 <img class="card" src="img/back.png" />
-                <span class="card_count">6</span>
+                <span class="card_count"></span>
             </div>
         </div>
-        <div class="opponent">
+        <div class="opponent" id="Ekaterina">
             <span class="name">Ekaterina</span>
             <span class="status"></span>
             <div class="opponent_hand">
                 <img class="card" src="img/back.png" />
-                <span class="card_count">6</span>
+                <span class="card_count"></span>
             </div>
         </div>
     </div>
     <div id="table">
         <div id="deck">
             <img id="deck_image" src="img/deck.png" />
-            <img id="trump" class="card" src="img/8_of_hearts.png" />
+            <img id="trump" class="card" />
         </div>
-        <div id="battlefield" style="display: none">
-            <div class="attacking_slot">Place attacking card</div>
+        <div id="battlefield">
+            <span id="placeholder">&nbsp;</span>
         </div>
         <div id="information">
-            <span id="status_message">Press 'Deal' to begin the game.</span>
+            <span id="status_text">Press 'Deal' to begin the game.</span>
         </div>
     </div>
 
-    <div id="player" class="">
+    <div id="Player" class="">
         <span class="name" id="player_name">Player</span>
         <span class="status"></span>
         <ol id="hand">
-            <li>blah</li>
         </ol>
     </div>
 </div>

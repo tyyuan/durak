@@ -38,13 +38,17 @@ div.defending {
     background-color: rgba(255, 0, 0, .2);
 }
 
+div.surrendered {
+    background-color: rgba(255, 0, 0, .6);
+}
+
 span.name {
     font-family: 'Roboto', sans-serif;
     font-size: 14pt;
     align-self: center;
 }
 
-#player {
+#Player {
     margin-left: auto;
     margin-right: auto;
     width=400px;
@@ -55,10 +59,21 @@ span.name {
 #hand {
     list-style: none;
     padding-left: 0;
+    height: 80px;
 }
 
 #hand li {
     display: inline;
+    padding: 2px;
+}
+
+#hand li img {
+    border: 3px solid;
+    border-color: transparent;
+}
+
+#hand li img.selected {
+   border-color: rgba(0, 255, 0, .8);
 }
 
 .card {
@@ -76,10 +91,6 @@ span.name {
     position: relative;
     right: 40px;
     z-index: -1;
-}
-
-.selected {
-   border:3px solid rgba(0, 255, 0, .8);
 }
 
 .card_count {
@@ -102,10 +113,16 @@ span.name {
     width: 100%;
     margin-top: 20px;
     margin-bottom: 20px;
+    height = 90px;
     justify-content: center;
 }
 
-.attacking_slot {
+#battlefield div {
+    margin-left: 5px;
+    margin-right: 5px;
+}
+
+#attacking_slot {
     border-width: 2px;
     border-style: dotted;
     width: 55px;
@@ -115,6 +132,11 @@ span.name {
     line-height: 25px;
     text-align: center;
     font-size: 12px;
+}
+
+#placeholder {
+    width: 1px;
+    height: 80px;
 }
 
 .attacking_card {
@@ -136,6 +158,6 @@ span.name {
     text-align: center
 }
 
-#status_message {
+#status_text {
     font-size: 12pt;
 }
