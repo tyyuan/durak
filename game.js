@@ -427,6 +427,7 @@ durak.game.Game.prototype.deal = function() {
     this.playersRemaining = this.players.length;
 
     this.deck = new durak.game.Deck();
+    this.battlefield = new durak.game.Battlefield();
     this.deck.shuffle();
 
     for (var i = 0; i < 6; i++) {
@@ -456,7 +457,7 @@ durak.game.Game.prototype.deal = function() {
         trumpLabel.style.color = '#000';
     }
 
-    this.attackingPlayer = 0 //Math.floor(Math.random() * this.playersRemaining);
+    this.attackingPlayer = Math.floor(Math.random() * this.playersRemaining);
     this.defendingPlayer = this.incrementPlayer(this.attackingPlayer);
     this.initiateRound();
 };
@@ -639,6 +640,9 @@ durak.game.Game.prototype.checkForGameOver = function() {
 durak.game.Game.prototype.nextPhase = function() {
     passButton.style.display = 'none';
 
+    if (this.state == GameStates.GAME_OVER) {
+        return;
+    }
 
     if (this.state == GameStates.READY_TO_INITIATE) {
         this.initiateRound();
@@ -748,10 +752,10 @@ function init() {
       {'type': 'button', 'value': 'Surrender', 'style': 'display: none'});
 
     statusText = document.getElementById('status_text');
-    var informationBox = document.getElementById('information');
-    informationBox.appendChild(dealButton);
-    informationBox.appendChild(passButton);
-    informationBox.appendChild(surrenderButton);
+    var buttons = document.getElementById('buttons');
+    buttons.appendChild(dealButton);
+    buttons.appendChild(passButton);
+    buttons.appendChild(surrenderButton);
     goog.events.listen(dealButton, goog.events.EventType.CLICK,
                        game.deal, false, game);
     goog.events.listen(passButton, goog.events.EventType.CLICK,

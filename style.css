@@ -113,7 +113,7 @@ span.name {
     width: 100%;
     margin-top: 20px;
     margin-bottom: 20px;
-    height = 90px;
+    height = 100px;
     justify-content: center;
 }
 
@@ -147,6 +147,16 @@ span.name {
 
 #information {
     text-align: center
+}
+
+#buttons {
+    text-align: center
+}
+
+#buttons input {
+    width: 10em;  height: 4em;
+    padding-bottom: 2em;
+    font-size: 20pt;
 }
 
 #status_text {
