@@ -18,29 +18,27 @@ durak.game.Suits = {
 };
 
 durak.game.Ranks = {
-    SIX: '6',
-    SEVEN: '7',
-    EIGHT: '8',
-    NINE: '9',
-    TEN: '10',
-    JACK: 'J',
-    QUEEN: 'Q',
-    KING: 'K',
-    ACE: 'A'
+    SIX: 1,
+    SEVEN: 2,
+    EIGHT: 3,
+    NINE: 4,
+    TEN: 5,
+    JACK: 6,
+    QUEEN: 7,
+    KING: 8,
+    ACE: 9
 };
 
-durak.game.Ranks.RankNames = {
+durak.game.RankNames = {
     1: '6',
     2: '7',
     3: '8',
-    this.suit = suit
-    this.rank = rank
     4: '9',
     5: '10',
-    JACK: 'J',
-    QUEEN: 'Q',
-    KING: 'K',
-    ACE: 'A'
+    6: 'J',
+    7: 'Q',
+    8: 'K',
+    9: 'A'
 }
 
 durak.game.Card = function(suit, rank) {
@@ -52,7 +50,7 @@ durak.game.Card = function(suit, rank) {
 };
 
 durak.game.Card.prototype.getImageName = function() {
-    return 'img/' + this.rank + this.suit + '.png';
+    return 'img/' + durak.game.RankNames[this.rank] + this.suit + '.png';
 };
 
 durak.game.Deck = function() {
@@ -134,6 +132,12 @@ durak.game.Player.prototype.addCard = function(card) {
     }
 };
 
+durak.game.Player.prototype.addCards = function(cards) {
+    for (var card in cards) {
+        this.addCard(card);
+    }
+};
+
 durak.game.Player.prototype.removeCard = function(index) {
     var card= this.hand[index]
     this.hand.splice(index, 1);
@@ -163,21 +167,28 @@ durak.game.Player.prototype.selectCard = function(e) {
 }
 
 durak.game.Player.prototype.deselectCards = function() {
+    if (this.selectedCard != null) {
+        for(var i = 0; i < this.hand.length; i++) {
+            goog.dom.classes.remove(this.hand[i].imageElement, 'selected');
+        }
+    }
+
     this.selectedCard = null;
     this.selectedIndex = -1;
-    for(var i = 0; i < this.hand.length; i++) {
-        goog.dom.classes.remove(this.hand[i].imageElement, 'selected');
-    }
 }
 
 durak.game.Player.prototype.setStatus = function(status) {
+    this.removeStatus();
+
     this.status = status;
     this.statusElement.innerHTML = status;
     goog.dom.classes.add(this.contentElement, status);
 }
 
 durak.game.Player.prototype.removeStatus = function() {
-    goog.dom.classes.remove(this.contentElement, this.status);
+    if (this.status != null) {
+        goog.dom.classes.remove(this.contentElement, this.status);
+    }
     this.status = null;
     this.statusElement.innerHTML = '';
 }
@@ -205,6 +216,8 @@ durak.game.Battlefield = function() {
     this.validRanks = new Set();
     this.contentElement = document.getElementById('battlefield');
     this.attackingSlot = goog.dom.createDom('div', {'id':'attacking_slot'});
+    this.placeholder = goog.dom.createDom('span', {'id':'placeholder'}, '');
+    goog.dom.appendChild(this.contentElement, this.placeholder);
     goog.events.listen(this.attackingSlot, goog.events.EventType.CLICK,
                        this.makePlayerAttack, false, this);
 }
@@ -252,10 +265,24 @@ durak.game.Battlefield.prototype.makePlayerAttack = function(){
     game.players[game.attackingPlayer].deselectCards();
 }
 
+durak.game.Battlefield.prototype.clearBattlefield = function() {
+    var allCards = this.attacks.concat(this.blocks);
+
+    this.attacks = [];
+    this.blocks = [];
+    this.validRanks = new Set();
+    goog.dom.removeChildren(this.contentElement);
+    goog.dom.appendChild(this.contentElement, this.placeholder);
+    return allCards;
+}
+
 var GameStates = {
     AFTER_AI_ATTACK: 0,
     AFTER_AI_DEFENSE: 1,
-    PLAYER_ATTACK: 2
+    PLAYER_ATTACK: 2,
+    END_OF_ROUND: 3,
+    START_REDRAW: 4,
+    REDRAWING: 5
 };
 
 durak.game.Game = function() {
@@ -271,6 +298,8 @@ durak.game.Game = function() {
     this.trumpSuit = null;
     this.attackingPlayer = 0;
     this.defendingPlayer = 0;
+    this.originalAttacker = 0;
+    this.currentDraw = 0;
 };
 
 durak.game.Game.prototype.deal = function() {
@@ -302,9 +331,13 @@ durak.game.Game.prototype.deal = function() {
 
 durak.game.Game.prototype.initiateRound = function() {
     for (var i = 0; i < this.players.length; i++) {
-        this.players[i].playedAttack = false;
+        this.players[i].removeStatus();
+        if (i != this.defendingPlayer) {
+            this.players[i].playedAttack = true;
+        }
     }
 
+    this.originalAttacker = this.attackingPlayer;
     this.players[this.attackingPlayer].setStatus('attacking');
     this.players[this.defendingPlayer].setStatus('defending');
 
@@ -350,7 +383,7 @@ durak.game.Game.prototype.nextAttacker = function() {
 
     this.attackingPlayer = this.incrementPlayer(this.attackingPlayer);
 
-    while (!this.players[this.attackingPlayer].active || this.attackingPlayer == this.defendingPlayer) {
+    while (this.attackingPlayer == this.defendingPlayer) {
         this.attackingPlayer = this.incrementPlayer(this.attackingPlayer);
     }
 
@@ -363,32 +396,84 @@ durak.game.Game.prototype.incrementPlayer = function(p) {
         p = 0;
     }
 
+    while (!this.players[p].active) {
+            p += 1;
+            if (p >= this.players.length) {
+                p = 0;
+            }
+    }
+
     return p;
 }
 
 durak.game.Game.prototype.endRound = function() {
     if (this.players[this.defendingPlayer].status == 'surrendered') {
-
+        var clearedCards = this.battlefield.clearBattlefield()
+        updateStatusText(this.players[this.defendingPlayer].name + ' takes ' + clearedCards.length + ' cards.');
+        this.players[this.defendingPlayer].addCards(clearedCards);
+        this.attackingPlayer = this.incrementPlayer(this.defendingPlayer);
+        this.defendingPlayer = this.incrementPlayer(this.attackingPlayer);
     }
+
+    if (this.deck.deck.length > 0) {
+        this.currentDraw = this.originalAttacker;
+        this.state = GameStates.START_REDRAW;
+        waitForNext();
+    } else {
+        this.initiateRound();
+    }
+}
+
+durak.game.Game.prototype.redraw = function() {
+    if (this.deck.deck.length <= 0 ||
+        (this.state == GameStates.REDRAWING && this.currentDraw == this.originalAttacker)) {
+        this.initiateRound();
+        return;
+    }
+
+    if (this.state = GameStates.START_REDRAW) {
+        this.state = GameStates.REDRAWING;
+    }
+
+    var cardsDrawn = 0;
+
+    while (this.players[this.currentDraw].hand.length < 6 && this.deck.deck.length > 0) {
+        this.players[this.currentDraw].addCard(this.deck.draw());
+        cardsDrawn += 1;
+    }
+
+    updateStatusText(this.players[this.currentDraw].name + ' draws ' + cardsDrawn + ' cards.');
+    this.currentDraw = this.incrementPlayer(this.currentDraw);
 }
 
 durak.game.Game.prototype.nextPhase = function() {
     passButton.style.display = 'none';
+    if (this.state == GameStates.END_OF_ROUND) {
+        this.endRound();
+        return;
+    }
+    if (this.state == GameStates.START_REDRAW || this.state == GameStates.REDRAWING) {
+        this.redraw();
+        return;
+    }
 
     var noAttacks = true;
-    for (int i = 0; i < this.players.length; i++) {
+    for (var i = 0; i < this.players.length; i++) {
         if (this.players[i].playedAttack) {
             noAttacks = false;
             break;
         }
     }
 
-    if (noAttacks) {
-        this.endRound();
+    if (noAttacks && this.attackingPlayer == this.originalAttacker) {
+        this.state = GameStates.END_OF_ROUND;
+        updateStatusText('No new attacks have been made. End of this round.');
+        waitForNext();
+        return;
     }
 
     if (this.state == GameStates.AFTER_AI_ATTACK || this.state == GameStates.PLAYER_ATTACK) {
-        if(this.state = GameStates.PLAYER_ATTACK) {
+        if(this.state == GameStates.PLAYER_ATTACK) {
             this.players[this.attackingPlayer].deselectCards();
             this.battlefield.removeAttackingSlot();
         }
