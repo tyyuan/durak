@@ -139,15 +139,6 @@ span.name {
     height: 80px;
 }
 
-.attacking_card {
-}
-
-.defending_card {
-    z-index: 1;
-    position: relative;
-    top: 60px;
-}
-
 .status {
     font-family: 'Roboto', sans-serif;
     font-variant: small-caps;
@@ -160,4 +151,11 @@ span.name {
 
 #status_text {
     font-size: 12pt;
+}
+
+.defending_card {
+    position: relative;
+    right: 50px;
+    top: 5px;
+    z-index: 2;
 }

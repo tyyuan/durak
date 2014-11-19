@@ -58,6 +58,8 @@ durak.game.Card.prototype.canBeat = function(other) {
         return true;
     } else if (other.suit == game.trumpSuit && this.suit != game.trumpSuit) {
         return false;
+    } else if (this.suit != other.suit) {
+        return false
     }
 
     return this.rank > other.rank;
@@ -235,6 +237,12 @@ durak.game.Attack = function(attackingCard) {
     this.divElement = goog.dom.createDom('div', {'class': 'attack'}, attackingCard.imageElement);
 }
 
+durak.game.Attack.prototype.defend = function(card) {
+    this.defendingCard = card;
+    goog.dom.classes.add(this.defendingCard.imageElement, 'defending_card');
+    goog.dom.appendChild(this.divElement, card.imageElement);
+}
+
 durak.game.Battlefield = function() {
     this.attacks = [];
     this.validRanks = new Set();
@@ -253,13 +261,35 @@ durak.game.Battlefield.prototype.addAttack = function(card) {
     }
 
     var newAttack = new durak.game.Attack(card);
+
+    if (game.players[game.defendingPlayer].human) {
+        goog.events.listen(newAttack.divElement, goog.events.EventType.CLICK,
+                    this.makePlayerDefense, false, this);
+    }
+
     goog.dom.appendChild(this.contentElement, newAttack.divElement);
     this.attacks.push(newAttack);
     this.validRanks.add(card.rank);
 }
 
+durak.game.Battlefield.prototype.addDefense = function(card, index) {
+    var attackingCard = this.attacks[index].attackingCard;
+
+    if (!card.canBeat(attackingCard)) {
+        return;
+    }
+
+    this.attacks[index].defend(card);
+    this.validRanks.add(card.rank);
+}
+
 durak.game.Battlefield.prototype.hasNewAttacks = function() {
-    return this.attacks.length > this.blocks.length;
+    for (var i = 0; i < this.attacks.length; i++) {
+        if (this.attacks[i].defendingCard == null) {
+            return true;
+        }
+    }
+    return false;
 }
 
 durak.game.Battlefield.prototype.addAttackingSlot = function() {
@@ -300,11 +330,51 @@ durak.game.Battlefield.prototype.makePlayerAttack = function(){
     game.players[game.attackingPlayer].deselectCards();
 }
 
+durak.game.Battlefield.prototype.makePlayerDefense = function(e) {
+    if (game.players[game.defendingPlayer].selectedCard == null ||
+        game.state != GameStates.PLAYER_DEFEND) {
+        return;
+    }
+
+    var card = game.players[game.defendingPlayer].selectedCard;
+
+    for (var i = 0; i < this.attacks.length; i++) {
+        if (e.target == this.attacks[i].attackingCard.imageElement) {
+            if (this.attacks[i].defendingCard != null) {
+                updateStatusText('You have already beaten that card.');
+                break;
+            }
+            var attackingCard = this.attacks[i].attackingCard;
+            if (card.canBeat(attackingCard)) {
+                game.players[game.defendingPlayer]
+                    .removeCard(game.players[game.defendingPlayer].selectedIndex);
+                this.addDefense(card, i);
+
+                if (!this.hasNewAttacks()) {
+                    updateStatusText('You have beaten all current attacks.');
+                    if (game.deck.deck.length == 0) {
+                        game.players[this.defendingPlayer].checkIfOut();
+                    }
+                    game.state = GameStates.AFTER_DEFENSE;
+                    waitForNext();
+                }
+            } else {
+                updateStatusText('You must play a higher card of the same suit or a trump card.');
+            }
+
+            break;
+        }
+    }
+    game.players[game.defendingPlayer].deselectCards();
+
+}
+
 durak.game.Battlefield.prototype.clearBattlefield = function() {
     var allCards = []
     for (var i = 0; i < this.attacks.length; i++) {
         allCards.push(this.attacks[i].attackingCard);
         if (this.attacks[i].defendingCard !== null) {
+            goog.dom.classes.remove(this.attacks[i].defendingCard.imageElement, 'defending_card');
             allCards.push(this.attacks[i].defendingCard);
         }
     }
@@ -584,6 +654,7 @@ durak.game.Game.prototype.nextPhase = function() {
             }
         }
     } else if (this.state == GameStates.AFTER_DEFENSE) {
+        surrenderButton.style.display = 'none';
         this.attack();
     }
 }
@@ -598,7 +669,7 @@ var statusText;
 function waitForNext() {
     if (game.state == GameStates.PLAYER_ATTACK) {
         passButton.value = 'Pass';
-    } else{
+    } else {
         passButton.value = 'Next';
     }
     passButton.style.display = 'inline';
