@@ -8,7 +8,8 @@ goog.provide('durak.game.Battlefield');
 goog.require('goog.dom');
 goog.require('goog.dom.classes');
 goog.require('goog.events');
-goog.require('goog.ui.Button');
+goog.require('goog.json.Serializer');
+goog.require('goog.net.XhrIo');
 
 durak.game.Suits = {
     CLUBS: 'C',
@@ -50,7 +51,7 @@ durak.game.Card = function(suit, rank) {
 };
 
 durak.game.Card.prototype.getImageName = function() {
-    return 'img/' + durak.game.RankNames[this.rank] + this.suit + '.png';
+    return 'img/' + this.getString() + '.png';
 };
 
 durak.game.Card.prototype.canBeat = function(other) {
@@ -64,6 +65,10 @@ durak.game.Card.prototype.canBeat = function(other) {
 
     return this.rank > other.rank;
 }
+
+durak.game.Card.prototype.getString = function() {
+    return durak.game.RankNames[this.rank] + this.suit
+};
 
 durak.game.Deck = function() {
     this.deck = [];
@@ -235,6 +240,15 @@ durak.game.Player.prototype.AIDefense = function(game) {
     game.surrender();
 }
 
+durak.game.Player.prototype.export = function() {
+    return {
+        'hand': this.hand.map(function (element) {
+            return element.getString();
+        }),
+        'status': this.status
+    };
+}
+
 durak.game.Attack = function(attackingCard) {
     this.attackingCard = attackingCard;
     this.defendingCard = null;
@@ -245,6 +259,13 @@ durak.game.Attack.prototype.defend = function(card) {
     this.defendingCard = card;
     goog.dom.classes.add(this.defendingCard.imageElement, 'defending_card');
     goog.dom.appendChild(this.divElement, card.imageElement);
+}
+
+durak.game.Attack.prototype.export = function() {
+    return {
+        'attacking': this.attackingCard.getString(),
+        'defending': (this.defendingCard != null) ? this.defendingCard.getString() : null
+    };
 }
 
 durak.game.Battlefield = function() {
@@ -390,6 +411,13 @@ durak.game.Battlefield.prototype.clearBattlefield = function() {
     return allCards;
 }
 
+durak.game.Battlefield.prototype.export = function() {
+    return {
+        'attacks': this.attacks.map(function(element) {return element.export()}),
+        'maxAttacks': this.maxAttacks
+    };
+}
+
 var GameStates = {
     AFTER_AI_ATTACK: 0,
     AFTER_DEFENSE: 1,
@@ -413,6 +441,7 @@ durak.game.Game = function() {
     ];
     this.state = GameStates.GAME_OVER;
     this.trumpSuit = null;
+    this.trumpCard = null;
     this.attackingPlayer = 0;
     this.defendingPlayer = 0;
     this.originalAttacker = 0;
@@ -436,11 +465,11 @@ durak.game.Game.prototype.deal = function() {
         }
     }
 
-    var trumpCard = this.deck.getTrump();
-    this.trumpSuit = trumpCard.suit;
+    this.trumpCard = this.deck.getTrump();
+    this.trumpSuit = this.trumpCard.suit;
     this.deck.trumpElement.style.display = 'inline';
     this.deck.trumpElement.style.visibility = 'visible';
-    this.deck.trumpElement.src = trumpCard.getImageName();
+    this.deck.trumpElement.src = this.trumpCard.getImageName();
     this.deck.deckElement.style.visibility = 'visible';
     dealButton.style.display = 'none';
 
@@ -721,10 +750,22 @@ durak.game.Game.prototype.nextPhase = function() {
     }
 }
 
+durak.game.Game.prototype.export = function() {
+    return {
+        'battlefield': this.battlefield.export(),
+        'players': this.players.map(function(element) {return element.export()}),
+        'attackingPlayer': this.attackingPlayer,
+        'defendingPlayer': this.defendingPlayer,
+        'trumpCard': this.trumpCard.getString(),
+        'playersRemaining': this.playersRemaining,
+        'deckSize': this.deck.deck.length
+    };
+}
 
 var game;
 var dealButton;
 var passButton;
+var serializer;
 var surrenderButton;
 var statusText;
 
@@ -763,4 +804,5 @@ function init() {
     goog.events.listen(surrenderButton, goog.events.EventType.CLICK,
                        game.playerSurrender, false, game);
 
+    serializer = new goog.json.Serializer();
 }
