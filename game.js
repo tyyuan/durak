@@ -454,8 +454,13 @@ durak.game.Game = function() {
     this.originalAttacker = 0;
     this.currentDraw = 0;
     this.playersRemaining = 0;
-    this.serializer = null;
-    this.xhr = null;
+
+    this.serializer = new goog.json.Serializer();
+    this.xhr = new goog.net.XhrIo();
+
+    goog.events.listen(this.xhr, goog.net.EventType.COMPLETE, this.processCallback,
+                      false, this);
+
 };
 
 durak.game.Game.prototype.deal = function() {
@@ -494,12 +499,6 @@ durak.game.Game.prototype.deal = function() {
     } else {
         trumpLabel.style.color = '#000';
     }
-
-    this.serializer = new goog.json.Serializer();
-    this.xhr = new goog.net.XhrIo();
-
-    goog.events.listen(this.xhr, goog.net.EventType.COMPLETE, this.processCallback,
-                      false, this);
 
     this.attackingPlayer = this.findFirstPlayer();
     this.defendingPlayer = this.incrementPlayer(this.attackingPlayer);
