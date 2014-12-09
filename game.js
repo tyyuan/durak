@@ -806,3 +806,7 @@ function init() {
 
     serializer = new goog.json.Serializer();
 }
+
+function serialize_game() {
+    return serializer.serialize(game.export());
+}
