@@ -42,6 +42,18 @@ durak.game.RankNames = {
     9: 'A'
 }
 
+durak.game.ParseRanks = {
+    '6': 1,
+    '7': 2,
+    '8': 3,
+    '9': 4,
+    '10': 5,
+    'J': 6,
+    'Q': 7,
+    'K': 8,
+    'A': 9
+}
+
 durak.game.Card = function(suit, rank) {
     this.suit = suit;
     this.rank = rank;
@@ -64,6 +76,10 @@ durak.game.Card.prototype.canBeat = function(other) {
     }
 
     return this.rank > other.rank;
+}
+
+durak.game.Card.prototype.equals = function(other) {
+    return this.suit == other.suit && this.rank == other.rank;
 }
 
 durak.game.Card.prototype.getString = function() {
@@ -111,6 +127,12 @@ durak.game.Deck.prototype.draw = function() {
 durak.game.Deck.prototype.getTrump = function() {
     return this.deck[this.deck.length - 1];
 };
+
+durak.game.Deck.prototype.export = function() {
+    return this.deck.map(function (element) {
+            return element.getString();
+    });
+}
 
 durak.game.Player = function(name, human) {
     this.hand = []
@@ -234,10 +256,6 @@ durak.game.Player.prototype.AIAttack = function(game) {
     updateStatusText(this.name + ' plays an attack.');
     this.playedAttack = true;
     game.battlefield.addAttack(card);
-}
-
-durak.game.Player.prototype.AIDefense = function(game) {
-    game.surrender();
 }
 
 durak.game.Player.prototype.export = function() {
@@ -427,7 +445,9 @@ var GameStates = {
     REDRAWING: 5,
     PLAYER_DEFEND: 6,
     READY_TO_INITIATE: 7,
-    GAME_OVER: 8
+    GAME_OVER: 8,
+    WAITING_FOR_ATTACK_RPC: 9,
+    WAITING_FOR_DEFENSE_RPC: 10
 };
 
 durak.game.Game = function() {
@@ -447,6 +467,8 @@ durak.game.Game = function() {
     this.originalAttacker = 0;
     this.currentDraw = 0;
     this.playersRemaining = 0;
+    this.serializer = null;
+    this.xhr = null;
 };
 
 durak.game.Game.prototype.deal = function() {
@@ -485,6 +507,12 @@ durak.game.Game.prototype.deal = function() {
     } else {
         trumpLabel.style.color = '#000';
     }
+
+    this.serializer = new goog.json.Serializer();
+    this.xhr = new goog.net.XhrIo();
+
+    goog.events.listen(this.xhr, goog.net.EventType.COMPLETE, this.processCallback,
+                      false, this);
 
     this.attackingPlayer = this.findFirstPlayer();
     this.defendingPlayer = this.incrementPlayer(this.attackingPlayer);
@@ -560,12 +588,8 @@ durak.game.Game.prototype.attack = function() {
 
         this.battlefield.addAttackingSlot();
     } else {
-        this.players[this.attackingPlayer].AIAttack(this);
-        if (this.deck.deck.length == 0) {
-            this.players[this.attackingPlayer].checkIfOut();
-        }
-        this.state = GameStates.AFTER_AI_ATTACK;
-        waitForNext();
+        this.state = GameStates.WAITING_FOR_ATTACK_RPC;
+        this.sendRPC('attack');
     }
 }
 
@@ -576,12 +600,8 @@ durak.game.Game.prototype.defend = function() {
 
         surrenderButton.style.display = 'inline';
     } else {
-        this.players[this.defendingPlayer].AIDefense(this);
-        if (this.deck.deck.length == 0) {
-            this.players[this.defendingPlayer].checkIfOut();
-        }
-        this.state = GameStates.AFTER_DEFENSE;
-        waitForNext();
+        this.state = GameStates.WAITING_FOR_DEFENSE_RPC;
+        this.sendRPC('defense');
     }
 }
 
@@ -789,8 +809,51 @@ durak.game.Game.prototype.export = function() {
         'defendingPlayer': this.defendingPlayer,
         'trumpCard': this.trumpCard.getString(),
         'playersRemaining': this.playersRemaining,
-        'deckSize': this.deck.deck.length
+        'deck': this.deck.export()
     };
+}
+
+durak.game.Game.prototype.sendRPC = function(method) {
+    this.xhr.send(serverPath + method, opt_method = 'POST',
+             opt_content = this.serializer.serialize(this.export()));
+}
+
+durak.game.Game.prototype.processCallback = function(e) {
+    var response = this.xhr.getResponseJson();
+
+    if (this.state == GameStates.WAITING_FOR_ATTACK_RPC) {
+        this.AIAttack(response);
+        return;
+    } else if (this.state == GameStates.WAITING_FOR_DEFENSE_RPC) {
+        this.AIDefense(response);
+        return;
+    } else {
+        alert('oops, invalid state.');
+    }
+}
+
+durak.game.Game.prototype.AIAttack = function(response) {
+    this.players[this.attackingPlayer].AIAttack(this);
+    if (this.deck.deck.length == 0) {
+        this.players[this.attackingPlayer].checkIfOut();
+    }
+    this.state = GameStates.AFTER_AI_ATTACK;
+    waitForNext();
+}
+
+durak.game.Game.prototype.AIDefense = function(response) {
+    if (response == null) {
+        this.surrender();
+    } else {
+        for (var i = 0; i < response.length; i++) {
+        }
+    }
+
+    if (this.deck.deck.length == 0) {
+        this.players[this.defendingPlayer].checkIfOut();
+    }
+    this.state = GameStates.AFTER_DEFENSE;
+    waitForNext();
 }
 
 var game;
@@ -799,6 +862,8 @@ var passButton;
 var serializer;
 var surrenderButton;
 var statusText;
+var serverPath = 'http://127.0.0.1:8080/';
+
 
 function waitForNext() {
     if (game.state == GameStates.PLAYER_ATTACK) {
@@ -834,10 +899,4 @@ function init() {
                        game.nextPhase, false, game);
     goog.events.listen(surrenderButton, goog.events.EventType.CLICK,
                        game.playerSurrender, false, game);
-
-    serializer = new goog.json.Serializer();
-}
-
-function serialize_game() {
-    return serializer.serialize(game.export());
 }
