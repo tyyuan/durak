@@ -165,11 +165,15 @@ span.name {
 
 .defending_card {
     position: relative;
-    right: 50px;
-    top: 5px;
+    right: 45px;
+    top: 10px;
     z-index: 2;
 }
 
 #trump_symbol {
     font-size: 80px;
+}
+
+.code {
+    font-family: monospace;
 }

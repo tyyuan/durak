@@ -185,7 +185,10 @@ class DurakJSONEncoder(json.JSONEncoder):
     return json.JSONEncoder.default(self, obj)
 
 def get_valid_attack_moves(game):
-  valid_attacks = [NO_ATTACK]
+  valid_attacks = []
+  
+  if len(game.battlefield.attacks) > 0:
+    valid_attacks.append(NO_ATTACK)
 
   for rank in game.battlefield.valid_ranks.keys():
     cards_of_rank = []
@@ -197,22 +200,25 @@ def get_valid_attack_moves(game):
     if (len(cards_of_rank) == 0):
       continue
 
-    generate_attack_play(valid_attacks, cards_of_rank, 0, [])
+    generate_attack_play(valid_attacks, cards_of_rank, 0, [], game.battlefield.max_attacks - len(game.battlefield.attacks))
 
   return valid_attacks
 
-def generate_attack_play(valid_attacks, cards_of_rank, index, cards_played):
+def generate_attack_play(valid_attacks, cards_of_rank, index, cards_played, max_attacks):
   if index >= len(cards_of_rank):
     valid_attacks.append(cards_played)
     return
 
+  if len(cards_played) > max_attacks:
+    return
+  
   updated_cards_played = deepcopy(cards_played)
   updated_cards_played.append(cards_of_rank[index])
 
-  generate_attack_play(valid_attacks, cards_of_rank, index+1, updated_cards_played)
+  generate_attack_play(valid_attacks, cards_of_rank, index+1, updated_cards_played, max_attacks)
 
   if (index > 0):
-    generate_attack_play(valid_attacks, cards_of_rank, index+1, cards_played)
+    generate_attack_play(valid_attacks, cards_of_rank, index+1, cards_played, max_attacks)
 
 def get_valid_blocks(game):
   blocks = [None for i in game.battlefield.attacks]
