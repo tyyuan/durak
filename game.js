@@ -486,7 +486,7 @@ durak.game.Game.prototype.deal = function() {
         trumpLabel.style.color = '#000';
     }
 
-    this.attackingPlayer = Math.floor(Math.random() * this.playersRemaining);
+    this.attackingPlayer = this.findFirstPlayer();
     this.defendingPlayer = this.incrementPlayer(this.attackingPlayer);
     this.initiateRound();
 };
@@ -506,6 +506,37 @@ durak.game.Game.prototype.initiateRound = function() {
     this.battlefield.maxAttacks = Math.min(6, this.players[this.defendingPlayer].hand.length);
 
     this.attack();
+}
+
+durak.game.Game.prototype.findFirstPlayer = function() {
+    var lowestTrump = null;
+    var firstPlayer = Math.floor(Math.random() * this.playersRemaining);
+    
+    for (var i = 0; i < this.players.length; i++) {
+        var playerLowestTrump = null;
+        
+        for (var j = 0; j < this.players[i].hand.length; j++) {
+            if (this.players[i].hand[j].suit == game.trumpSuit) {
+                if (playerLowestTrump == null) {
+                    playerLowestTrump = this.players[i].hand[j];
+                } else if (this.players[i].hand[j].rank < playerLowestTrump.rank) {
+                    playerLowestTrump = this.players[i].hand[j]
+                }
+            }
+        }
+        
+        if (playerLowestTrump != null) {
+            if (lowestTrump == null) {
+                lowestTrump = playerLowestTrump;
+                firstPlayer = i;
+            } else if (playerLowestTrump.rank < lowestTrump.rank) {
+                lowestTrump = playerLowestTrump;
+                firstPlayer = i;
+            }
+        }
+    }
+    
+    return firstPlayer;
 }
 
 durak.game.Game.prototype.attack = function() {

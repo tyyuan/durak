@@ -3,6 +3,9 @@ import random
 
 from copy import deepcopy
 
+# Heuristic Weights
+EXTRA_CARD_WEIGHT = 12
+
 SURRENDER = 'SURRENDER'
 
 RANKS = {
@@ -104,6 +107,17 @@ class Player:
   
   def __repr__(self):
     return self.__str__()
+  
+  def get_hand_heuristic(self):
+    heuristic = EXTRA_CARD_WEIGHT * (6 - len(self.hand))
+    
+    for card in self.hand:
+      if card.trump():
+        heuristic += 9
+      
+      heuristic += card.rank
+    
+    return heuristic
 
 class Attack:
   def __init__(self, map):
