@@ -1,12 +1,20 @@
 import json
+import math
 import random
+import sys
+import time
 import urlparse
 
 from BaseHTTPServer import BaseHTTPRequestHandler
 from copy import deepcopy
 
+DEBUG = False
+
 SURRENDER = None
 NO_ATTACK = None
+
+MCTS_TIME = 1.0
+MAX_SIMULATED_MOVES = 1000
 
 RANKS = {
   '6': 1,
@@ -51,6 +59,23 @@ ALL_RANKS = {
   9: None
 }
 
+UCB = lambda w, n, t: float(w)/n + math.sqrt((2*math.log(t))/n)
+score_node = UCB
+
+def enum(**enums):
+    return type('Enum', (object,), enums)
+
+GameStates = enum(ATTACK = 1, DEFENSE = 2, DONE = 3)
+PlayerStates = enum(ATTACKING = 1, DEFENDING = 2, SURRENDERED = 3, OUT = 4)
+
+PARSE_PLAYER_STATUS = {
+  'attacking': PlayerStates.ATTACKING,
+  'defending': PlayerStates.DEFENDING,
+  'surrendered': PlayerStates.SURRENDERED,
+  'out': PlayerStates.OUT,
+  None: None
+}
+
 trump_suit = None
 
 class Card:
@@ -68,10 +93,13 @@ class Card:
     return self.__str__()
     
   def __eq__(self, other):
+    if other == None:
+      return False
+    
     return self.rank == other.rank and self.suit == other.suit
   
   def __ne__(self, other):
-    return not self.eq(other)
+    return not self.__eq__(other)
   
   def __gt__(self, other):
     if self.trump() and not other.trump():
@@ -95,12 +123,14 @@ def parse_card(card_string):
 
   return Card(card_string[:-1], card_string[-1])
 
-ALL_CARDS = [Card(rank, suit) for rank in RANKS.keys() for suit in SUITS.keys()]
-
 class Player:
   def __init__(self, map):
     self.hand = [parse_card(q) for q in map['hand']]
-    self.status = map['status']
+    self.status = PARSE_PLAYER_STATUS[map['status']]
+
+  def remove_cards(self, move):
+    for card in move:
+      self.hand.remove(card)
 
   def __str__(self):
     return str(self.__dict__)
@@ -142,16 +172,32 @@ class Battlefield:
 
   def add_attack(self, attack):
     if len(self.attacks) == 0:
-      valid_ranks = {}
+      self.valid_ranks = {}
+    
+    if len(self.attacks) >= self.max_attacks:
+      return
 
-    valid_ranks[attack.rank] = None
+    self.valid_ranks[attack.rank] = None
     self.attacks.append(Attack({'attacking':attack.__str__(), 'defending': None}))
 
-  def add_block(self, index, block):
-    valid_ranks[block.rank] = None
+  def add_defense(self, index, block):
+    self.valid_ranks[block.rank] = None
 
     self.attacks[index].defending_card = block
+  
+  def clear_battlefield(self):
+    cards = []
     
+    for attack in self.attacks:
+      cards.append(attack.attacking_card)
+      
+      if attack.defending_card != None:
+        cards.append(attack.defending_card)
+    
+    self.attacks = []
+    self.valid_ranks = ALL_RANKS
+    return cards
+  
   def __str__(self):
     return str(self.__dict__)
   
@@ -162,14 +208,173 @@ class Game:
   def __init__(self, map):
     self.attacking_player = map['attackingPlayer']
     self.defending_player = map['defendingPlayer']
+    self.last_attacker = map['lastAttacker']
     self.deck = [parse_card(q) for q in map['deck']]
     self.battlefield = Battlefield(map['battlefield'])
     self.players = [Player(q) for q in map['players']]
     self.players_remaining = map['playersRemaining']
-    self.trump_card = parse_card(map['trumpCard'])
+    self.attacks_remaining = self.players_remaining - 1
+    self.state = None
+    self.perspective = None
     
     global trump_suit
-    trump_suit = self.trump_card.suit
+    trump_suit = parse_card(map['trumpCard']).suit
+  
+  def increment_player(self, n):
+    if self.players_remaining <= 1:
+      return n
+    
+    n = (n + 1) % len(self.players)
+    
+    while self.players[n].status == PlayerStates.OUT:
+      n = (n + 1) % len(self.players)
+    
+    return n
+  
+  def next_attacker(self, n = None):
+    if n == None:
+      n = self.attacking_player
+    
+    n = self.increment_player(n)
+    
+    while n == self.defending_player:
+      n = self.increment_player(n)
+    
+    return n
+  
+  def play_attack(self, move):
+    if len(self.players[self.attacking_player].hand) == 0:
+      self.next_phase()
+      return
+    
+    if move == NO_ATTACK:
+      self.attacks_remaining -= 1
+    else:
+      self.players[self.attacking_player].remove_cards(move)
+      for card in move:
+        self.battlefield.add_attack(card)
+      self.attacks_remaining = self.players_remaining - 1
+      self.last_attacker = self.attacking_player
+    
+    self.next_phase()
+    
+  def play_defense(self, move):
+    if len(self.players[self.defending_player].hand) == 0:
+      self.next_phase()
+      return
+    
+    if move == SURRENDER:
+      self.players[self.defending_player].status = PlayerStates.SURRENDERED
+    else:
+      self.players[self.defending_player].remove_cards(move)
+      for i in range(len(move)):
+        self.battlefield.add_defense(i, move[i])
+    
+    self.next_phase()
+  
+  def next_phase(self):
+    if len(self.deck) == 0:
+      for player in self.players:
+        if len(player.hand) == 0:
+          player.status = PlayerStates.OUT
+          self.players_remaining -= 1
+
+    if self.players_remaining <= 1:
+      self.state = GameStates.DONE
+      return
+    
+    if self.state == GameStates.ATTACK:
+      if self.attacks_remaining == 0:
+        self.end_round()
+        return  
+      elif self.last_attacker == self.attacking_player:
+        if self.players[self.defending_player].status == PlayerStates.SURRENDERED:
+          if len(self.battlefield.attacks) >= self.battlefield.max_attacks:
+            self.end_round()
+            return
+          else:
+            self.attacking_player = self.next_attacker()
+            return
+        else:
+          self.state = GameStates.DEFENSE
+          return
+      else:
+        self.attacking_player = self.next_attacker()
+        return
+    elif self.state == GameStates.DEFENSE:
+      if len(self.battlefield.attacks) >= self.battlefield.max_attacks:
+        self.end_round()
+        return
+      elif self.players[self.defending_player].status == PlayerStates.OUT:
+        self.end_round()
+        return
+      else:
+        self.state = GameStates.ATTACK
+        
+        if (self.players[self.attacking_player].status == PlayerStates.OUT):
+          self.attacking_player = self.next_attacker()
+        
+        return
+    else:
+      raise ValueError('Game is not in a proper state.')
+      
+  
+  def end_round(self):    
+    if self.players_remaining <= 1:
+      self.state = GameStates.DONE
+      return
+
+    if self.players[self.defending_player].status == PlayerStates.SURRENDERED:
+      self.players[self.defending_player].hand += self.battlefield.clear_battlefield()
+      self.attacking_player = self.next_attacker(self.defending_player)
+    else:
+      self.battlefield.clear_battlefield()
+      if (self.players[self.defending_player].status == PlayerStates.OUT):
+        self.attacking_player = self.next_attacker(self.defending_player)
+      else:
+        self.attacking_player = self.defending_player
+    
+    self.defending_player = self.increment_player(self.attacking_player)
+    self.state = GameStates.ATTACK
+    
+    if len(self.deck) == 0:
+      return
+    
+    current_player = self.last_attacker
+    while len(self.players[current_player].hand) < 6:
+      self.players[current_player].hand.append(self.deck.pop(0))
+      
+      if len(self.deck) == 0:
+        return
+    
+    current_player = self.increment_player(current_player)
+    while current_player != self.last_attacker:
+      while len(self.players[current_player].hand) < 6:
+        self.players[current_player].hand.append(self.deck.pop(0))
+      
+        if len(self.deck) == 0:
+          return
+      current_player = self.increment_player(current_player)
+    
+  def play_out(self):
+    if self.state == GameStates.DONE:
+      return self.players[self.perspective].status == PlayerStates.OUT
+    
+    random_game = deepcopy(self)
+    moves = 0
+    
+    while random_game.state != GameStates.DONE:
+      if random_game.state == GameStates.ATTACK:
+        random_game.play_attack(random_attack(random_game))
+      elif random_game.state == GameStates.DEFENSE:
+        random_game.play_defense(random_defense(random_game))
+        
+      moves += 1
+
+      if moves > MAX_SIMULATED_MOVES:
+        return False
+    
+    return random_game.players[self.perspective].status == PlayerStates.OUT
   
   def __str__(self):
     return str(self.__dict__)
@@ -241,7 +446,12 @@ def get_valid_defense_moves(game):
   
   defenses = [SURRENDER]
   
-  generate_defense_play(valid_blocks, defenses, 0, [])
+  blocks_completed = 0
+  for attack in game.battlefield.attacks:
+    if attack.defending_card != None:
+      blocks_completed += 1
+  
+  generate_defense_play(valid_blocks, defenses, blocks_completed, [None for i in range(blocks_completed)])
   
   return defenses
 
@@ -264,16 +474,138 @@ def generate_defense_play(valid_blocks, defenses, blocks_completed, current_play
     
     generate_defense_play(updated_valid_blocks, defenses, blocks_completed + 1, updated_plays)
 
-def ai_attack(game):
+def random_attack(game):
   valid_attacks = get_valid_attack_moves(game)
-
+  
   return random.choice(valid_attacks)
 
-def ai_defense(game):
+def random_defense(game):
   valid_defenses = get_valid_defense_moves(game)
 
   return random.choice(valid_defenses)
 
+class Node:
+  def __init__(self, game, parent):
+    self.game = game
+    self.move = None
+    self.parent = parent
+    self.children = None
+    self.plays = 0
+    self.wins = 0
+    self.is_leaf = game.state == GameStates.DONE
+    
+  def update_statistics(self, additional_wins, additional_plays):
+    current = self
+    
+    while current != None:
+      current.plays += additional_plays
+      current.wins += additional_wins
+      current = current.parent
+  
+  def expand(self):
+    if self.is_leaf:
+      self.update_statistics(1 if self.game.play_out() else 0, 1)
+      return
+    
+    self.children = []
+    if self.game.state == GameStates.ATTACK:
+      valid_moves = get_valid_attack_moves(self.game)
+
+      for move in valid_moves:
+        next_game = deepcopy(self.game)
+        next_game.play_attack(move)
+        child = Node(next_game, self)
+        child.move = move
+        self.children.append(child)
+        child.update_statistics(1 if child.game.play_out() else 0, 1)
+      
+    elif self.game.state == GameStates.DEFENSE:
+      valid_moves = get_valid_defense_moves(self.game)
+      
+      for move in valid_moves:
+        next_game = deepcopy(self.game)
+        next_game.play_defense(move)
+        child = Node(next_game, self)
+        child.move = move
+        self.children.append(child)
+        child.update_statistics(1 if child.game.play_out() else 0, 1)
+        
+  def __str__(self):
+    return str(self.__dict__)
+    
+  def __repr__(self):
+    return self.__str__()
+      
+def MCTS(root):
+  root.expand()
+  
+  start_time = time.time()
+  total_simulations = 1
+  
+  while True:
+    current_node = root
+    
+    while current_node.children != None:      
+      max_score = -999.99
+      max_children = None
+      for child in current_node.children:
+        if child.is_leaf:
+          continue
+        
+        score = score_node(child.wins, child.plays, total_simulations)
+        
+        if score > max_score:
+          max_score = score
+          max_child = child
+      
+      if max_child == None:
+        current_node = random.choice(current_node.children)
+        break
+        
+      current_node = max_child
+    
+    current_node.expand()
+    
+    total_simulations += 1
+    if total_simulations % 20 == 0:
+      if time.time() - start_time > MCTS_TIME:
+        break
+  
+  best_moves = None
+  max_plays = -1
+  
+  for child in root.children:
+    if child.plays > max_plays:
+      best_moves = [child.move]
+      max_plays = child.plays
+    elif child.plays == max_plays:
+      best_moves.append(child.move)
+  
+  if best_moves == None:
+    return random.choice(root.children).move
+  
+  return random.choice(best_moves)
+
+def ai_attack(game):
+  if len(get_valid_attack_moves(game)) == 1:
+    return get_valid_attack_moves(game)[0]
+  
+  game.state = GameStates.ATTACK
+  game.perspective = game.attacking_player
+  
+  root = Node(game, None)
+  return MCTS(root)
+
+def ai_defense(game):
+  if len(get_valid_defense_moves(game)) == 1:
+    return get_valid_defense_moves(game)[0]
+  
+  game.state = GameStates.DEFENSE
+  game.perspective = game.defending_player
+  
+  root = Node(game, None)
+  return MCTS(root)
+  
 def parse_game(game_json):
   try:
     decoded = json.loads(game_json)
@@ -300,7 +632,6 @@ class AIHandler(BaseHTTPRequestHandler):
         else:
           message = 'Invalid path.'
 
-        print ('Sending headers...')
         self.send_response(200)
         self.end_headers()
         self.wfile.write(message)
@@ -311,6 +642,18 @@ class AIHandler(BaseHTTPRequestHandler):
         BaseHTTPRequestHandler.end_headers(self)
 
 if __name__ == '__main__':
+    if len(sys.argv) == 3:
+      DEBUG = True
+      
+      game = parse_game(open(sys.argv[2]).read())
+      
+      if(sys.argv[1] == 'a'):
+        print 'ATTACK STRATEGY:',ai_attack(game)
+      else:
+        print 'DEFENSE STRATEGY:',ai_defense(game)
+      
+      sys.exit(0)
+      
     from BaseHTTPServer import HTTPServer
     server = HTTPServer(('localhost', 8080), AIHandler)
     print 'Starting server. Use <Ctrl-C> to stop'

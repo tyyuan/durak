@@ -181,6 +181,7 @@ durak.game.Player.prototype.removeCard = function(index) {
     this.hand.splice(index, 1);
     if (this.human) {
         goog.dom.removeNode(card.imageElement);
+        this.deselectCards();
     } else {
         this.countElement.innerHTML = this.hand.length;
     }
@@ -289,6 +290,9 @@ durak.game.Battlefield.prototype.addAttack = function(card) {
     if (!this.validRanks.has(card.rank) && this.validRanks.size != 0) {
         return;
     }
+    if (this.attacks.length >= this.maxAttacks) {
+        return;
+    }
 
     var newAttack = new durak.game.Attack(card);
 
@@ -343,6 +347,7 @@ durak.game.Battlefield.prototype.makePlayerAttack = function(){
             .removeCard(game.players[game.attackingPlayer].selectedIndex));
         this.removeAttackingSlot();
         game.players[game.attackingPlayer].playedAttack = true;
+        game.lastAttacker = game.attackingPlayer;
 
         if (this.attacks.length < this.maxAttacks) {
             this.addAttackingSlot();
@@ -379,6 +384,12 @@ durak.game.Battlefield.prototype.makePlayerDefense = function(e) {
                 game.players[game.defendingPlayer]
                     .removeCard(game.players[game.defendingPlayer].selectedIndex);
                 this.addDefense(card, i);
+                
+                for (var i = 0; i < game.players.length; i++) {
+                    if (game.players[i].active) {
+                        game.players[i].playedAttack = true;
+                    }
+                }
 
                 if (!this.hasNewAttacks()) {
                     updateStatusText('You have beaten all current attacks.');
@@ -451,7 +462,7 @@ durak.game.Game = function() {
     this.trumpCard = null;
     this.attackingPlayer = 0;
     this.defendingPlayer = 0;
-    this.originalAttacker = 0;
+    this.lastAttacker = 0;
     this.currentDraw = 0;
     this.playersRemaining = 0;
 
@@ -513,7 +524,7 @@ durak.game.Game.prototype.initiateRound = function() {
         }
     }
 
-    this.originalAttacker = this.attackingPlayer;
+    this.lastAttacker = this.attackingPlayer;
     this.players[this.attackingPlayer].setStatus('attacking');
     this.players[this.defendingPlayer].setStatus('defending');
 
@@ -648,7 +659,7 @@ durak.game.Game.prototype.endRound = function() {
     this.defendingPlayer = this.incrementPlayer(this.attackingPlayer);
 
     if (this.deck.deck.length > 0) {
-        this.currentDraw = this.originalAttacker;
+        this.currentDraw = this.lastAttacker;
         this.state = GameStates.START_REDRAW;
         waitForNext();
     } else {
@@ -659,7 +670,7 @@ durak.game.Game.prototype.endRound = function() {
 
 durak.game.Game.prototype.redraw = function() {
     if (this.deck.deck.length <= 0 ||
-        (this.state == GameStates.REDRAWING && this.currentDraw == this.originalAttacker)) {
+        (this.state == GameStates.REDRAWING && this.currentDraw == this.lastAttacker)) {
         this.initiateRound();
         return;
     }
@@ -721,11 +732,11 @@ durak.game.Game.prototype.nextPhase = function() {
         return;
     }
 
-    if (!this.players[this.originalAttacker].active) {
-        this.originalAttacker = this.incrementPlayer(this.originalAttacker);
+    if (!this.players[this.lastAttacker].active) {
+        this.lastAttacker = this.incrementPlayer(this.lastAttacker);
 
-        while (this.originalAttacker == this.defendingPlayer) {
-            this.originalAttacker = this.incrementPlayer(this.originalAttacker);
+        while (this.lastAttacker == this.defendingPlayer) {
+            this.lastAttacker = this.incrementPlayer(this.lastAttacker);
         }
     }
 
@@ -745,7 +756,7 @@ durak.game.Game.prototype.nextPhase = function() {
         }
     }
 
-    if (noAttacks && this.attackingPlayer == this.originalAttacker) {
+    if (noAttacks && this.attackingPlayer == this.lastAttacker) {
         this.state = GameStates.END_OF_ROUND;
         updateStatusText('No new attacks have been made. End of this round.');
         waitForNext();
@@ -793,7 +804,8 @@ durak.game.Game.prototype.export = function() {
         'defendingPlayer': this.defendingPlayer,
         'trumpCard': this.trumpCard.getString(),
         'playersRemaining': this.playersRemaining,
-        'deck': this.deck.export()
+        'deck': this.deck.export(),
+        'lastAttacker': this.lastAttacker
     };
 }
 
@@ -845,6 +857,7 @@ durak.game.Game.prototype.AIAttack = function(response) {
 
         updateStatusText(this.players[this.attackingPlayer].name + ' plays an attack.');
         this.players[this.attackingPlayer].playedAttack = true;
+        this.lastAttacker = this.attackingPlayer;
     }
     
     if (this.deck.deck.length == 0) {
@@ -873,6 +886,11 @@ durak.game.Game.prototype.AIDefense = function(response) {
             this.battlefield.addDefense(playedCard, i);
         }
         
+        for (var i = 0; i < this.players.length; i++) {
+            if (this.players[i].active) {
+                this.players[i].playedAttack = true;
+            }
+        }
         updateStatusText(this.players[this.defendingPlayer].name + ' defends.');
     }
 
