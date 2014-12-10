@@ -130,7 +130,8 @@ class Player:
 
   def remove_cards(self, move):
     for card in move:
-      self.hand.remove(card)
+      if card != None:
+        self.hand.remove(card)
 
   def __str__(self):
     return str(self.__dict__)
@@ -268,7 +269,8 @@ class Game:
     else:
       self.players[self.defending_player].remove_cards(move)
       for i in range(len(move)):
-        self.battlefield.add_defense(i, move[i])
+        if move[i] != None:
+          self.battlefield.add_defense(i, move[i])
     
     self.next_phase()
   

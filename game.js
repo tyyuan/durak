@@ -174,6 +174,10 @@ durak.game.Player.prototype.addCards = function(cards) {
     for (var i = 0; i < cards.length; i++) {
         this.addCard(cards[i]);
     }
+    
+    if (this.human) {
+      this.deselectCards();
+    }
 };
 
 durak.game.Player.prototype.removeCard = function(index) {
@@ -872,6 +876,10 @@ durak.game.Game.prototype.AIDefense = function(response) {
         this.surrender();
     } else {
         for (var i = 0; i < response.length; i++) {
+            if (response[i] == null) {
+                continue;
+            }
+            
             var cardToPlay = this.parseCard(response[i]);
             
             var removeIndex = -1;
